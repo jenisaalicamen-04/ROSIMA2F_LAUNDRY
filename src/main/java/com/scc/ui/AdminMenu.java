@@ -14,6 +14,9 @@ import java.sql.SQLException;
 import java.util.List;
 
 import static com.scc.util.Console.*;
+import static com.scc.util.Constants.ROLE_ADMIN;
+import static com.scc.util.Constants.ROLE_CUSTOMER;
+import static com.scc.util.Constants.ROLE_STAFF;
 
 /** Screen for the ADMIN role: accounts, all orders, activity log, status report + export. */
 public class AdminMenu {
@@ -30,8 +33,9 @@ public class AdminMenu {
             System.out.println("[7] View all system users");
             System.out.println("[8] View pending registrations");
             System.out.println("[9] Approve user account");
+            System.out.println("[10] Update user role and status");
             System.out.println("[0] Logout");
-            int ch = askInt("Select: ", 0, 9);
+            int ch = askInt("Select: ", 0, 10);
             try {
                 switch (ch) {
                     case 1 -> AccountMenu.show(user);
@@ -43,6 +47,7 @@ public class AdminMenu {
                     case 7 -> viewAllUsers();
                     case 8 -> viewPendingUsers();
                     case 9 -> approveUserAccount(user);
+                    case 10 -> updateUserRoleAndStatus(user);
                     default -> {
                         return;
                     }
@@ -89,6 +94,107 @@ public class AdminMenu {
             LogDao.log(admin.userId(), null, "Account approved: " + target.username());
             System.out.println("-> Success! " + target.username() + " (User ID " + id + ") is now APPROVED.");
             return;
+        }
+    }
+
+    // ---------------------------------------------------------------- update role + status
+
+    /** Shows all users, asks for a target ID, then a new role and status. Entering 0 cancels at any step. */
+    private static void updateUserRoleAndStatus(User admin) throws SQLException {
+        System.out.println("\n--- UPDATE USER ROLE AND STATUS ---");
+        List<User> users = UserDao.getAllUsers();
+        printUserTable(users);
+
+        // Step 1: target user ID
+        User target;
+        while (true) {
+            int id = readIntInput("Enter User ID to update (0 to cancel): ");
+            if (id == 0) {
+                System.out.println("-> Update cancelled.");
+                return;
+            }
+            if (id == admin.userId()) {
+                System.out.println("WARNING: Modifying the currently active admin account is restricted.");
+                continue;
+            }
+            target = users.stream().filter(u -> u.userId() == id).findFirst().orElse(null);
+            if (target == null) {
+                System.out.println("-> No user with ID " + id + ". Try again or enter 0 to cancel.");
+                continue;
+            }
+            break;
+        }
+
+        // Step 2: new role
+        String newRole;
+        while (true) {
+            newRole = readValidRole();
+            if (newRole == null) {
+                System.out.println("-> Update cancelled.");
+                return;
+            }
+            if (ROLE_CUSTOMER.equals(newRole) && target.customerId() == null) {
+                System.out.println("WARNING: " + target.username()
+                        + " has no customer profile, so the role cannot be changed to " + ROLE_CUSTOMER + ".");
+                continue;
+            }
+            break;
+        }
+
+        // Step 3: new status
+        String newStatus = readValidStatus();
+        if (newStatus == null) {
+            System.out.println("-> Update cancelled.");
+            return;
+        }
+
+        // Step 4: confirm
+        System.out.printf("%nChange %s (ID %d): %s / %s  ->  %s / %s%n", target.username(), target.userId(),
+                target.role(), target.accountStatus(), newRole, newStatus);
+        if (readIntInput("Confirm? [1] Yes  [0] Cancel: ") != 1) {
+            System.out.println("-> Update cancelled.");
+            return;
+        }
+
+        UserDao.updateUserRoleAndStatus(target.userId(), newRole, newStatus);
+        LogDao.log(admin.userId(), null, "Updated " + target.username() + ": role=" + newRole + ", status=" + newStatus);
+        System.out.println("-> Success! " + target.username() + " is now " + newRole + " / " + newStatus + ".");
+        printUserTable(List.of(UserDao.findById(target.userId())));
+    }
+
+    // ---------------------------------------------------------------- input validation wrappers
+
+    /** Reads a whole number. Letters or symbols never crash the program - it just asks again. */
+    private static int readIntInput(String prompt) {
+        while (true) {
+            String s = ask(prompt);
+            try {
+                return Integer.parseInt(s);
+            } catch (NumberFormatException e) {
+                System.out.println("-> Invalid input. Please enter a number.");
+            }
+        }
+    }
+
+    /** Keeps asking until a valid role is typed. Returns the role in upper case, or null if the admin enters 0. */
+    private static String readValidRole() {
+        while (true) {
+            String s = ask("Enter new role [" + ROLE_CUSTOMER + " / " + ROLE_STAFF + " / " + ROLE_ADMIN
+                    + "] (0 to cancel): ").toUpperCase();
+            if (s.equals("0")) return null;
+            if (s.equals("STAFF")) s = ROLE_STAFF;        // short form
+            if (s.equals(ROLE_CUSTOMER) || s.equals(ROLE_STAFF) || s.equals(ROLE_ADMIN)) return s;
+            System.out.println("-> Invalid role. Choose CUSTOMER, LAUNDRY STAFF or ADMIN.");
+        }
+    }
+
+    /** Keeps asking until APPROVED or PENDING is typed. Returns it in upper case, or null if the admin enters 0. */
+    private static String readValidStatus() {
+        while (true) {
+            String s = ask("Enter new status [APPROVED / PENDING] (0 to cancel): ").toUpperCase();
+            if (s.equals("0")) return null;
+            if (s.equals("APPROVED") || s.equals("PENDING")) return s;
+            System.out.println("-> Invalid status. Choose APPROVED or PENDING.");
         }
     }
 

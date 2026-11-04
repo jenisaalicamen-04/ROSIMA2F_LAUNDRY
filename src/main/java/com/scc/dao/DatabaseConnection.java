@@ -33,10 +33,10 @@ public class DatabaseConnection {
                         user_id         INTEGER PRIMARY KEY AUTOINCREMENT,
                         username        TEXT NOT NULL UNIQUE,
                         password        TEXT NOT NULL,
-                        role            TEXT NOT NULL CHECK (role IN ('Customer','Laundry Staff','Admin')),
+                        role            TEXT NOT NULL CHECK (role IN ('CUSTOMER','LAUNDRY STAFF','ADMIN')),
                         customer_id     INTEGER REFERENCES Customer(customer_id),
                         account_status  TEXT NOT NULL DEFAULT 'PENDING'
-                                        CHECK (account_status IN ('PENDING','APPROVED','Inactive'))
+                                        CHECK (account_status IN ('PENDING','APPROVED','INACTIVE'))
                     )""");
 
             // TABLE 2: LaundryOrder

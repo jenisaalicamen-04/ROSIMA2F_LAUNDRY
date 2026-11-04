@@ -14,6 +14,7 @@ LOGINS
    Staff : staff / staff123
    Customers: choose [2] Register as Customer on the first menu. New accounts are PENDING
               until the Admin approves them (Admin menu > [9]).
+   Admins can change a user's role and status from Admin menu > [10].
 
 DATABASE (SQLite - open it in Letos)
    File: laundryOrders.db (project root, next to pom.xml)

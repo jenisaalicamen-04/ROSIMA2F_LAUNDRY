@@ -28,7 +28,7 @@ public class AccountMenu {
                 case 1 -> listAccounts();
                 case 2 -> addAccount(admin);
                 case 3 -> editAccount(admin);
-                case 4 -> changeAccountStatus(admin, "Inactive");
+                case 4 -> changeAccountStatus(admin, "INACTIVE");
                 case 5 -> changeAccountStatus(admin, "APPROVED");
                 default -> {
                     return;
@@ -110,12 +110,12 @@ public class AccountMenu {
         User u = UserDao.findById(askId("User ID: "));
         if (u == null) {
             System.out.println("-> Account not found.");
-        } else if (u.userId() == admin.userId() && "Inactive".equals(status)) {
+        } else if (u.userId() == admin.userId() && "INACTIVE".equals(status)) {
             System.out.println("-> You cannot deactivate your own account.");
         } else {
             UserDao.setStatus(u.userId(), status);
             LogDao.log(admin.userId(), null,
-                    ("Inactive".equals(status) ? "Account deactivated: " : "Account reactivated: ") + u.username());
+                    ("INACTIVE".equals(status) ? "Account deactivated: " : "Account reactivated: ") + u.username());
             System.out.println("-> " + u.username() + " is now " + status + ".");
         }
     }

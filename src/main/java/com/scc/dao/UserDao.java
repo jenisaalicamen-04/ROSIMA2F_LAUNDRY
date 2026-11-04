@@ -157,12 +157,26 @@ public class UserDao {
         }
     }
 
-    /** DELETE (soft): APPROVED / Inactive. The record is never removed. */
+    /** DELETE (soft): APPROVED / INACTIVE. The record is never removed. */
     public static void setStatus(int userId, String status) throws SQLException {
         try (Connection c = DatabaseConnection.getConnection();
              PreparedStatement ps = c.prepareStatement("UPDATE UserAccount SET account_status = ? WHERE user_id = ?")) {
             ps.setString(1, status);
             ps.setInt(2, userId);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * UPDATE: change a user's role and status in one statement.
+     * Both values are converted to upper case before they reach the database.
+     */
+    public static void updateUserRoleAndStatus(int userId, String newRole, String newStatus) throws SQLException {
+        String sql = "UPDATE UserAccount SET role = ?, account_status = ? WHERE user_id = ?";
+        try (Connection c = DatabaseConnection.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, newRole.trim().toUpperCase());
+            ps.setString(2, newStatus.trim().toUpperCase());
+            ps.setInt(3, userId);
             ps.executeUpdate();
         }
     }

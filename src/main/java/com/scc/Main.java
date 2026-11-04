@@ -14,7 +14,7 @@ import java.sql.SQLException;
  *   Admin : admin / admin123
  *   Staff : staff / staff123
  */
-public class 1Main {
+public class Main {
 
     public static void main(String[] args) {
         try {

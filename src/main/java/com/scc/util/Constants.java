@@ -6,9 +6,9 @@ import java.time.format.DateTimeFormatter;
 /** Roles, order statuses, service types and date helpers shared by the whole program. */
 public class Constants {
 
-    public static final String ROLE_CUSTOMER = "Customer";
-    public static final String ROLE_STAFF = "Laundry Staff";
-    public static final String ROLE_ADMIN = "Admin";
+    public static final String ROLE_CUSTOMER = "CUSTOMER";
+    public static final String ROLE_STAFF = "LAUNDRY STAFF";
+    public static final String ROLE_ADMIN = "ADMIN";
 
     public static final String PENDING = "Pending";
     public static final String PROCESSING = "Processing";
