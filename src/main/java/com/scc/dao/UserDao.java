@@ -10,23 +10,11 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.scc.util.Constants.ROLE_ADMIN;
 import static com.scc.util.Constants.ROLE_CUSTOMER;
-import static com.scc.util.Constants.ROLE_STAFF;
 
 /** UserAccount table: register, login, update and activate or deactivate accounts.
  *  Passwords are stored exactly as typed (plain text, no hashing). */
 public class UserDao {
-
-    public static void seedDefaultAccounts() throws SQLException {
-        try (Connection c = DatabaseConnection.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM UserAccount")) {
-            if (rs.next() && rs.getInt(1) > 0) return;
-        }
-        createStaffOrAdmin("admin", "admin123", ROLE_ADMIN);
-        createStaffOrAdmin("staff", "staff123", ROLE_STAFF);
-    }
 
     private static User map(ResultSet rs) throws SQLException {
         int cid = rs.getInt("customer_id");
@@ -47,7 +35,7 @@ public class UserDao {
 
     /** CREATE: customer profile + login account, saved together (all-or-nothing). */
     public static int registerCustomer(String name, String contact, String address,
-                                String username, String password, String status) throws SQLException {
+                                       String username, String password, String status) throws SQLException {
         try (Connection c = DatabaseConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -88,14 +76,22 @@ public class UserDao {
         }
     }
 
+    /** Admin adds a staff or admin account: it is APPROVED straight away. */
     public static int createStaffOrAdmin(String username, String password, String role) throws SQLException {
+        return createStaffOrAdmin(username, password, role, "APPROVED");
+    }
+
+    /** Creates a staff or admin account with the given status (PENDING for self-registration). */
+    public static int createStaffOrAdmin(String username, String password, String role, String status)
+            throws SQLException {
         try (Connection c = DatabaseConnection.getConnection();
              PreparedStatement ps = c.prepareStatement(
-                     "INSERT INTO UserAccount(username, password, role, account_status) VALUES(?,?,?,'APPROVED')",
+                     "INSERT INTO UserAccount(username, password, role, account_status) VALUES(?,?,?,?)",
                      Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, username);
             ps.setString(2, password);
             ps.setString(3, role);
+            ps.setString(4, status);
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) {
                 k.next();
@@ -168,16 +164,73 @@ public class UserDao {
     }
 
     /**
-     * UPDATE: change a user's role and status in one statement.
+     * UPDATE: change a user's role and status.
      * Both values are converted to upper case before they reach the database.
+     * A user switched to CUSTOMER who has no customer profile gets one (name = username, contact and address
+     * "N/A"); the admin or the customer can edit it later. An old customer profile is kept, so orders stay linked.
      */
     public static void updateUserRoleAndStatus(int userId, String newRole, String newStatus) throws SQLException {
-        String sql = "UPDATE UserAccount SET role = ?, account_status = ? WHERE user_id = ?";
-        try (Connection c = DatabaseConnection.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, newRole.trim().toUpperCase());
-            ps.setString(2, newStatus.trim().toUpperCase());
-            ps.setInt(3, userId);
+        String role = newRole.trim().toUpperCase();
+        String status = newStatus.trim().toUpperCase();
+        try (Connection c = DatabaseConnection.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                if (ROLE_CUSTOMER.equals(role)) ensureCustomerProfile(c, userId);
+                try (PreparedStatement ps = c.prepareStatement(
+                        "UPDATE UserAccount SET role = ?, account_status = ? WHERE user_id = ?")) {
+                    ps.setString(1, role);
+                    ps.setString(2, status);
+                    ps.setInt(3, userId);
+                    ps.executeUpdate();
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            }
+        }
+    }
+
+    /** Gives the account a customer profile when it has none yet (needed before it can become a CUSTOMER). */
+    private static void ensureCustomerProfile(Connection c, int userId) throws SQLException {
+        String username;
+        try (PreparedStatement ps = c.prepareStatement(
+                "SELECT username, customer_id FROM UserAccount WHERE user_id = ?")) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return;
+                username = rs.getString("username");
+                rs.getInt("customer_id");
+                if (!rs.wasNull()) return; // already has a profile
+            }
+        }
+        int customerId;
+        try (PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO Customer(name, contact_number, address) VALUES(?,?,?)",
+                Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, username);
+            ps.setString(2, "N/A");
+            ps.setString(3, "N/A");
             ps.executeUpdate();
+            try (ResultSet k = ps.getGeneratedKeys()) {
+                k.next();
+                customerId = k.getInt(1);
+            }
+        }
+        try (PreparedStatement ps = c.prepareStatement("UPDATE UserAccount SET customer_id = ? WHERE user_id = ?")) {
+            ps.setInt(1, customerId);
+            ps.setInt(2, userId);
+            ps.executeUpdate();
+        }
+    }
+
+    /** How many APPROVED admin accounts exist. While it is 0, a newly registered Admin is approved at once. */
+    public static int countApprovedAdmins() throws SQLException {
+        String sql = "SELECT COUNT(*) FROM UserAccount WHERE role = 'ADMIN' AND account_status = 'APPROVED'";
+        try (Connection c = DatabaseConnection.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
         }
     }
 

@@ -49,7 +49,8 @@ public class CustomerMenu {
     private static void customerCreateOrder(User user) throws SQLException {
         String service = chooseService(false);
         int orderId = OrderDao.create(user.customerId(), service);
-        LogDao.log(user.userId(), orderId, "New laundry order created (" + service + ")");
+        LogDao.logAction(user.userId(), orderId, "ORDER_CREATED", "Submitted laundry order #" + orderId
+                + " by Customer " + user.username() + " - Service: " + service);
         System.out.println("-> Order #" + orderId + " created. Status: " + PENDING);
     }
 
@@ -69,7 +70,7 @@ public class CustomerMenu {
             System.out.println("-> Only Pending orders can be cancelled.");
         } else {
             OrderDao.cancel(id);
-            LogDao.log(user.userId(), id, "Order cancelled by customer");
+            LogDao.logAction(user.userId(), id, "ORDER_CANCELLED", "Order #" + id + " cancelled by Customer " + user.username());
             System.out.println("-> Order #" + id + " cancelled (record kept in your history).");
         }
     }
@@ -79,13 +80,13 @@ public class CustomerMenu {
         System.out.println("Leave blank to keep the current value.");
         String contact = ask("Contact number [" + c.contactNumber() + "]: ");
         String address = ask("Address [" + c.address() + "]: ");
-        String password = ask("New password (min 4 chars): ");
+        String password = ask("New password (any text, blank = keep): ");
         CustomerDao.update(c.customerId(), c.name(),
                 contact.isEmpty() ? c.contactNumber() : contact,
                 address.isEmpty() ? c.address() : address);
-        if (password.length() >= 4) UserDao.updatePassword(user.userId(), password);
-        else if (!password.isEmpty()) System.out.println("   Password too short - password was not changed.");
-        LogDao.log(user.userId(), null, "Account information updated");
+        if (!password.isEmpty()) UserDao.updatePassword(user.userId(), password);
+        LogDao.logAction(user.userId(), "PROFILE_UPDATED", "Customer " + user.username() + " (ID: " + user.userId()
+                + ") updated their account information");
         System.out.println("-> Account updated.");
     }
 }

@@ -52,16 +52,17 @@ public class DatabaseConnection {
                         total_amount  REAL NOT NULL DEFAULT 0
                     )""");
 
-            // TABLE 4: ActivityLog
+            // TABLE 4: activity_logs (order_id is empty for login, logout and account actions)
             st.execute("""
-                    CREATE TABLE IF NOT EXISTS ActivityLog (
-                        log_id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id       INTEGER NOT NULL REFERENCES UserAccount(user_id),
-                        order_id      INTEGER REFERENCES LaundryOrder(order_id),
-                        action        TEXT NOT NULL,
-                        log_datetime  TEXT NOT NULL
+                    CREATE TABLE IF NOT EXISTS activity_logs (
+                        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id      INTEGER NOT NULL REFERENCES UserAccount(user_id) ON DELETE CASCADE,
+                        order_id     INTEGER REFERENCES LaundryOrder(order_id),
+                        action_type  TEXT NOT NULL,
+                        description  TEXT NOT NULL,
+                        timestamp    TEXT NOT NULL
                     )""");
         }
-        UserDao.seedDefaultAccounts();
+        // The system starts with NO accounts: the first Admin registers from the Register screen.
     }
 }

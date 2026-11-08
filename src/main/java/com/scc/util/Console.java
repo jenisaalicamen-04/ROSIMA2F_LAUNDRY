@@ -30,12 +30,9 @@ public class Console {
         }
     }
 
+    /** Any password the user wants (any length or characters). It only cannot be empty. */
     public static String askPassword(String prompt) {
-        while (true) {
-            String s = ask(prompt);
-            if (s.length() >= 4) return s;
-            System.out.println("   Password must be at least 4 characters.");
-        }
+        return askRequired(prompt);
     }
 
     public static int askInt(String prompt, int min, int max) {

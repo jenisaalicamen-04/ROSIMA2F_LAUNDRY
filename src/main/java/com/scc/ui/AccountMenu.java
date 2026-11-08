@@ -62,14 +62,15 @@ public class AccountMenu {
             String contact = askRequired("Contact number: ");
             String address = askRequired("Address: ");
             username = askNewUsername();
-            password = askPassword("Password (min 4 chars): ");
+            password = askPassword("Password: ");
             UserDao.registerCustomer(name, contact, address, username, password, "APPROVED");
         } else {
             username = askNewUsername();
-            password = askPassword("Password (min 4 chars): ");
+            password = askPassword("Password: ");
             UserDao.createStaffOrAdmin(username, password, role);
         }
-        LogDao.log(admin.userId(), null, "Account created: " + username + " (" + role + ")");
+        LogDao.logAction(admin.userId(), "USER_CREATED",
+                "Admin [" + admin.userId() + "] created account: " + username + " (" + role + ")");
         System.out.println("-> Account created.");
     }
 
@@ -87,9 +88,8 @@ public class AccountMenu {
             if (UserDao.usernameExists(newUser)) System.out.println("   Username taken - not changed.");
             else UserDao.updateUsername(u.userId(), newUser);
         }
-        String newPass = ask("New password (min 4 chars): ");
-        if (newPass.length() >= 4) UserDao.updatePassword(u.userId(), newPass);
-        else if (!newPass.isEmpty()) System.out.println("   Password too short - not changed.");
+        String newPass = ask("New password (any text, blank = keep): ");
+        if (!newPass.isEmpty()) UserDao.updatePassword(u.userId(), newPass);
 
         if (u.customerId() != null) {
             Customer c = CustomerDao.find(u.customerId());
@@ -101,7 +101,8 @@ public class AccountMenu {
                     contact.isEmpty() ? c.contactNumber() : contact,
                     address.isEmpty() ? c.address() : address);
         }
-        LogDao.log(admin.userId(), null, "Account information updated: " + u.username());
+        LogDao.logAction(admin.userId(), "USER_UPDATED",
+                "Admin [" + admin.userId() + "] updated account information of User [" + u.userId() + "]");
         System.out.println("-> Account updated.");
     }
 
@@ -114,8 +115,8 @@ public class AccountMenu {
             System.out.println("-> You cannot deactivate your own account.");
         } else {
             UserDao.setStatus(u.userId(), status);
-            LogDao.log(admin.userId(), null,
-                    ("INACTIVE".equals(status) ? "Account deactivated: " : "Account reactivated: ") + u.username());
+            LogDao.logAction(admin.userId(), "USER_UPDATED", "Admin [" + admin.userId() + "] "
+                    + ("INACTIVE".equals(status) ? "deactivated" : "reactivated") + " User [" + u.userId() + "]");
             System.out.println("-> " + u.username() + " is now " + status + ".");
         }
     }

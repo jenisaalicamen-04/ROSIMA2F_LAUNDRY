@@ -11,6 +11,7 @@ import com.scc.util.ReportExporter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.scc.util.Console.*;
@@ -18,7 +19,7 @@ import static com.scc.util.Constants.ROLE_ADMIN;
 import static com.scc.util.Constants.ROLE_CUSTOMER;
 import static com.scc.util.Constants.ROLE_STAFF;
 
-/** Screen for the ADMIN role: accounts, all orders, activity log, status report + export. */
+/** Screen for the ADMIN role: accounts, all orders, audit logs, status report + export, role / status updates. */
 public class AdminMenu {
 
     public static void show(User user) {
@@ -27,7 +28,7 @@ public class AdminMenu {
             System.out.println("[1] Manage accounts");
             System.out.println("[2] View all laundry orders");
             System.out.println("[3] Search orders");
-            System.out.println("[4] View Laundry Activity Log");
+            System.out.println("[4] View System Audit Logs");
             System.out.println("[5] View Laundry Order Status Report");
             System.out.println("[6] Export Status Report (PDF / CSV / Excel)");
             System.out.println("[7] View all system users");
@@ -41,7 +42,7 @@ public class AdminMenu {
                     case 1 -> AccountMenu.show(user);
                     case 2 -> printOrders(OrderDao.findAll());
                     case 3 -> OrderSearch.show();
-                    case 4 -> viewActivityLog();
+                    case 4 -> viewAuditLogs();
                     case 5 -> printReport(OrderDao.report());
                     case 6 -> exportReport();
                     case 7 -> viewAllUsers();
@@ -91,7 +92,7 @@ public class AdminMenu {
                 continue;
             }
             UserDao.approveUser(id);
-            LogDao.log(admin.userId(), null, "Account approved: " + target.username());
+            LogDao.logAction(admin.userId(), "USER_APPROVED", "Admin [" + admin.userId() + "] approved User [" + id + "]");
             System.out.println("-> Success! " + target.username() + " (User ID " + id + ") is now APPROVED.");
             return;
         }
@@ -133,11 +134,6 @@ public class AdminMenu {
                 System.out.println("-> Update cancelled.");
                 return;
             }
-            if (ROLE_CUSTOMER.equals(newRole) && target.customerId() == null) {
-                System.out.println("WARNING: " + target.username()
-                        + " has no customer profile, so the role cannot be changed to " + ROLE_CUSTOMER + ".");
-                continue;
-            }
             break;
         }
 
@@ -157,7 +153,8 @@ public class AdminMenu {
         }
 
         UserDao.updateUserRoleAndStatus(target.userId(), newRole, newStatus);
-        LogDao.log(admin.userId(), null, "Updated " + target.username() + ": role=" + newRole + ", status=" + newStatus);
+        LogDao.logAction(admin.userId(), "USER_UPDATED", "Admin [" + admin.userId() + "] changed role of User "
+                + target.userId() + " to " + newRole + " and status of User " + target.userId() + " to " + newStatus);
         System.out.println("-> Success! " + target.username() + " is now " + newRole + " / " + newStatus + ".");
         printUserTable(List.of(UserDao.findById(target.userId())));
     }
@@ -198,18 +195,78 @@ public class AdminMenu {
         }
     }
 
-    private static void viewActivityLog() throws SQLException {
-        List<ActivityLog> logs = LogDao.findAll();
+    // ---------------------------------------------------------------- system audit logs
+
+    private static final int DESC_WIDTH = 35;
+    private static final String LOG_ROW = "%-5s | %-8s | %-18s | %-35s | %-20s";
+
+    /** Audit log screen: view every log, or only the logs of one user. */
+    private static void viewAuditLogs() throws SQLException {
+        while (true) {
+            System.out.println("\n--- SYSTEM AUDIT LOGS ---");
+            System.out.println("[1] View All System Logs");
+            System.out.println("[2] Filter Logs by User ID");
+            System.out.println("[0] Back");
+            int ch = askInt("Select: ", 0, 2);
+            switch (ch) {
+                case 1 -> printLogs(LogDao.getAllLogs());
+                case 2 -> printLogs(LogDao.getLogsByUserId(askId("Enter User ID: ")));
+                default -> {
+                    return;
+                }
+            }
+        }
+    }
+
+    /** Aligned table. A long description continues on the next line(s) so nothing is cut off. */
+    private static void printLogs(List<ActivityLog> logs) {
         if (logs.isEmpty()) {
             System.out.println("   No activity recorded yet.");
             return;
         }
-        System.out.printf("%-5s %-14s %-8s %-52s %-19s%n", "Log", "User", "Order", "Action", "Date & Time");
-        System.out.println("-".repeat(102));
+        String divider = "-".repeat(98);
+        System.out.println();
+        System.out.println(String.format(LOG_ROW, "ID", "User ID", "Action Type", "Description", "Timestamp"));
+        System.out.println(divider);
         for (ActivityLog l : logs) {
-            System.out.printf("%-5d %-14s %-8s %-52s %-19s%n", l.logId(), l.username(),
-                    l.orderId() == null ? "-" : "#" + l.orderId(), l.action(), l.logDatetime());
+            String text = l.description();
+            if (l.orderId() != null && !text.contains("#" + l.orderId())) text += " [Order #" + l.orderId() + "]";
+            List<String> lines = wrap(text, DESC_WIDTH);
+            for (int i = 0; i < lines.size(); i++) {
+                if (i == 0) {
+                    System.out.println(String.format(LOG_ROW, l.logId(), l.userId(), l.actionType(),
+                            lines.get(i), l.timestamp()));
+                } else {
+                    System.out.println(String.format(LOG_ROW, "", "", "", lines.get(i), ""));
+                }
+            }
         }
+        System.out.println(divider);
+        System.out.println("Records shown: " + logs.size() + " (most recent first)");
+    }
+
+    /** Splits text into lines of at most "width" characters, breaking at spaces when possible. */
+    private static List<String> wrap(String text, int width) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split(" ")) {
+            while (word.length() > width) { // a single very long word is cut
+                if (line.length() > 0) {
+                    lines.add(line.toString());
+                    line.setLength(0);
+                }
+                lines.add(word.substring(0, width));
+                word = word.substring(width);
+            }
+            if (line.length() > 0 && line.length() + 1 + word.length() > width) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+            if (line.length() > 0) line.append(' ');
+            line.append(word);
+        }
+        if (line.length() > 0 || lines.isEmpty()) lines.add(line.toString());
+        return lines;
     }
 
     private static void exportReport() throws SQLException, IOException {

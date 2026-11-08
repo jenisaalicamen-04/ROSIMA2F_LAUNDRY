@@ -64,7 +64,7 @@ public class StaffMenu {
         Double amount = askOptionalAmount("New total amount [" + String.format("%.2f", o.totalAmount()) + "] (blank = keep): ");
         OrderDao.updateInfo(o.orderId(), service == null ? o.serviceType() : service,
                 amount == null ? o.totalAmount() : amount, user.userId());
-        LogDao.log(user.userId(), o.orderId(), "Order updated");
+        LogDao.logAction(user.userId(), o.orderId(), "ORDER_UPDATED", "Updated Order #" + o.orderId() + " information");
         System.out.println("-> Order #" + o.orderId() + " updated.");
     }
 
@@ -81,7 +81,8 @@ public class StaffMenu {
             return;
         }
         OrderDao.updateStatus(o.orderId(), newStatus, user.userId());
-        LogDao.log(user.userId(), o.orderId(), "Order status changed: " + o.status() + " -> " + newStatus);
+        LogDao.logAction(user.userId(), o.orderId(), "STATUS_CHANGED", "Updated Order #" + o.orderId()
+                + " status from " + o.status().toUpperCase() + " to " + newStatus.toUpperCase());
         System.out.println("-> Order #" + o.orderId() + " is now " + newStatus + ".");
     }
 
@@ -93,7 +94,8 @@ public class StaffMenu {
             return;
         }
         OrderDao.updateStatus(o.orderId(), COMPLETED, user.userId());
-        LogDao.log(user.userId(), o.orderId(), "Order completed (picked up)");
+        LogDao.logAction(user.userId(), o.orderId(), "ORDER_COMPLETED", "Updated Order #" + o.orderId()
+                + " status from READY to COMPLETED (picked up)");
         System.out.println("-> Order #" + o.orderId() + " marked Completed.");
     }
 }
